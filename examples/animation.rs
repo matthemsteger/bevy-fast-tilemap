@@ -106,7 +106,8 @@ fn update_map(
             for x in x_min..x_max {
                 // Tile index transitions, since our animation is ridiculously short,
                 // we can list them here explicitly
-                let t = match m.at(x, y) {
+                let tile_info = m.at(x, y);
+                let t = match tile_info.tile_index {
                     6 => 7,
                     7 => 8,
                     _ => 6,

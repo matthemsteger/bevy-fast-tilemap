@@ -1,5 +1,5 @@
 use crate::{
-    map::{Map, MapIndexer},
+    map::{Map, MapIndexer, TileInfo},
     map_uniform::MapUniform,
 };
 use bevy::{math::uvec2, prelude::*};
@@ -106,10 +106,13 @@ impl MapBuilder {
     {
         self.map.map_texture.resize(
             (self.map.map_size().x * self.map.map_size().y) as usize,
-            0u32,
+            TileInfo::default(),
         );
 
-        initializer(&mut MapIndexer { map: &mut self.map });
+        initializer(&mut MapIndexer {
+            map: &mut self.map,
+            default_tile_info: TileInfo::default(),
+        });
 
         self.map.update_inverse_projection();
         self.map.map_uniform.update_world_size();

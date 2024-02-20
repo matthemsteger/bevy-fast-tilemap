@@ -3,7 +3,7 @@ use bevy::{
     prelude::*,
     render::{
         mesh::MeshVertexAttribute,
-        render_resource::{AsBindGroup, ShaderDefVal, ShaderRef, VertexFormat},
+        render_resource::{AsBindGroup, ShaderDefVal, ShaderRef, ShaderType, VertexFormat},
         texture::{ImageFilterMode, ImageSampler, ImageSamplerDescriptor},
     },
     sprite::{Material2d, Mesh2dHandle},
@@ -13,6 +13,13 @@ use crate::{map_builder::MapBuilder, map_uniform::MapUniform, shader::SHADER_HAN
 
 const ATTRIBUTE_MIX_COLOR: MeshVertexAttribute =
     MeshVertexAttribute::new("MixColor", 988779055, VertexFormat::Float32x4);
+
+#[derive(Debug, Clone, Default, Reflect, ShaderType)]
+pub struct TileInfo {
+    pub tile_index: u32,
+    pub bg_color: Color,
+    pub fg_color: Color,
+}
 
 /// Map, holding handles to a map texture with the tile data and an atlas texture
 /// with the tile renderings.
@@ -26,7 +33,7 @@ pub struct Map {
 
     /// Texture containing the tile IDs (one per each pixel)
     #[storage(100, read_only)]
-    pub(crate) map_texture: Vec<u32>,
+    pub(crate) map_texture: Vec<TileInfo>,
 
     /// Atlas texture with the individual tiles
     #[texture(101)]
@@ -144,7 +151,10 @@ impl Map {
     }
 
     pub fn indexer_mut(&mut self) -> MapIndexer {
-        MapIndexer { map: self }
+        MapIndexer {
+            map: self,
+            default_tile_info: TileInfo::default(),
+        }
     }
 
     /// Dimensions of this map in tiles.
@@ -239,6 +249,7 @@ impl Map {
 #[derive(Debug)]
 pub struct MapIndexer<'a> {
     pub(crate) map: &'a mut Map,
+    pub(crate) default_tile_info: TileInfo,
 }
 
 impl<'a> MapIndexer<'a> {
@@ -248,23 +259,23 @@ impl<'a> MapIndexer<'a> {
     }
 
     /// Get tile at given position.
-    pub fn at_ivec(&self, i: IVec2) -> u32 {
+    pub fn at_ivec(&self, i: IVec2) -> &TileInfo {
         self.at(i.x as u32, i.y as u32)
     }
 
     /// Get tile at given position.
-    pub fn at_uvec(&self, i: UVec2) -> u32 {
+    pub fn at_uvec(&self, i: UVec2) -> &TileInfo {
         self.at(i.x, i.y)
     }
 
     /// Get tile at given position.
-    pub fn at(&self, x: u32, y: u32) -> u32 {
+    pub fn at(&self, x: u32, y: u32) -> &TileInfo {
         // ensure x/y do not go out of bounds individually
         if x >= self.size().x || y >= self.size().y {
-            return 0;
+            return &self.default_tile_info;
         }
         let idx = y as usize * self.size().x as usize + x as usize;
-        self.map.map_texture[idx]
+        &self.map.map_texture[idx]
     }
 
     /// Set tile at given position.
@@ -279,11 +290,11 @@ impl<'a> MapIndexer<'a> {
             return;
         }
         let idx = y as usize * self.size().x as usize + x as usize;
-        self.map.map_texture[idx] = v;
+        self.map.map_texture[idx].tile_index = v;
     }
 }
 
-///
+/// Configure loaded assets
 pub fn configure_loaded_assets(
     map_materials: ResMut<Assets<Map>>,
     mut ev_asset: EventReader<AssetEvent<Image>>,
