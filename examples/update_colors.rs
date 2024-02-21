@@ -82,6 +82,9 @@ fn change_map(mut materials: ResMut<Assets<Map>>, maps: Query<&Handle<Map>>) {
         for y in y_min..y_min + k {
             for x in x_min..x_min + k {
                 m.set(x, y, i);
+                if i > 6 {
+                    m.set_fg_color(x, y, Color::RED);
+                }
             }
         }
     }

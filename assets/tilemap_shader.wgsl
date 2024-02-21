@@ -54,23 +54,23 @@ struct Map {
     global_inverse_transform_translation: vec3<f32>,
 };
 
-struct TileInfo {
-    tile_index: u32,
-    bg_color: vec4<f32>,
-    fg_color: vec4<f32>,
-}
-
 @group(1) @binding(0)
 var<uniform> map: Map;
 
 @group(1) @binding(100)
-var<storage> map_texture: array<TileInfo>;
+var<storage> map_texture: array<u32>;
 
 @group(1) @binding(101)
 var atlas_texture: texture_2d<f32>;
 
 @group(1) @binding(102)
 var atlas_sampler: sampler;
+
+@group(1) @binding(103)
+var<storage> map_bg_colors: array<vec4f>;
+
+@group(1) @binding(104)
+var<storage> map_fg_colors: array<vec4f>;
 
 struct Vertex {
     @builtin(instance_index) instance_index: u32,
@@ -96,7 +96,6 @@ fn vertex(v: Vertex) -> VertexOutput {
     out.position = mesh2d_position_local_to_clip(model, vec4<f32>(v.position, 1.0));
     out.world_position = mesh2d_position_local_to_world(model, vec4<f32>(v.position, 1.0));
     out.mix_color = v.mix_color;
-
     return out;
 }
 
@@ -233,9 +232,13 @@ fn world_to_tile_and_offset(
 }
 
 ///
-fn get_tile_info(map_position: vec2<i32>) -> TileInfo {
+fn get_tile_index(map_position: vec2<i32>) -> u32 {
     //return u32(textureLoad(map_texture, map_position).r);
     return map_texture[map_position.y * i32(map.map_size.x) + map_position.x];
+}
+
+fn get_tile_fg_color(map_position: vec2<i32>) -> vec4<f32> {
+  return map_fg_colors[map_position.y * i32(map.map_size.x) + map_position.x];
 }
 
 fn blend(c0: vec4<f32>, c1: vec4<f32>) -> vec4<f32> {
@@ -279,8 +282,7 @@ fn sample_neighbor(pos: MapPosition, tile_offset: vec2<i32>) -> vec4<f32> {
     }
 
     // kind of tile being displayed at that position
-    var tile_info = get_tile_info(tile);
-    var tile_index = tile_info.tile_index;
+    var tile_index = get_tile_index(tile);
     return sample_neighbor_tile_index(tile_index, pos, tile_offset);
 }
 
@@ -292,8 +294,7 @@ fn sample_neighbor_if_ge(index: u32, pos: MapPosition, tile_offset: vec2<i32>) -
     }
 
     // kind of tile being displayed at that position
-    var tile_info = get_tile_info(tile);
-    var tile_index = tile_info.tile_index;
+    var tile_index = get_tile_index(tile);
     if tile_index >= index {
         return sample_neighbor_tile_index(tile_index, pos, tile_offset);
     }
@@ -430,8 +431,8 @@ fn fragment(
     var world_position = in.world_position.xy;
     var color = vec4<f32>(0.0, 0.0, 0.0, 0.0);
     var pos = world_to_tile_and_offset(world_position);
-    var tile_info = get_tile_info(pos.tile);
-    var index = tile_info.tile_index;
+    var index = get_tile_index(pos.tile);
+    var fg_color = get_tile_fg_color(pos.tile);
 
     var sample_color = sample_tile(map, index, pos.offset);
 
@@ -454,7 +455,10 @@ fn fragment(
     #endif
 
     color = color * in.mix_color;
-    color = color * tile_info.fg_color;
+
+    if fg_color.a > 0.0 {
+      color = color * fg_color;
+    }
 
     return color;
 }
